@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <rect width="960" height="420" fill="#0f172a"/>
+  <rect x="70" y="90" width="200" height="110" rx="12" fill="#0891b2"/>
+  <rect x="380" y="90" width="200" height="110" rx="12" fill="#16a34a"/>
+  <rect x="690" y="90" width="200" height="110" rx="12" fill="#7c3aed"/>
+  <rect x="225" y="245" width="200" height="90" rx="12" fill="#334155"/>
+  <rect x="535" y="245" width="200" height="90" rx="12" fill="#334155"/>
+  <g fill="#ffffff" font-family="Arial, sans-serif" text-anchor="middle">
+    <text x="170" y="140" font-size="24" font-weight="700">Markdown</text>
+    <text x="170" y="172" font-size="16">文章与图片</text>
+    <text x="480" y="140" font-size="24" font-weight="700">Hexo</text>
+    <text x="480" y="172" font-size="16">生成静态页面</text>
+    <text x="790" y="140" font-size="24" font-weight="700">Vercel</text>
+    <text x="790" y="172" font-size="16">公网访问</text>
+    <text x="325" y="292" font-size="18" font-weight="700">主题模板</text>
+    <text x="325" y="318" font-size="14">Fluid / NexT / Butterfly</text>
+    <text x="635" y="292" font-size="18" font-weight="700">SEO</text>
+    <text x="635" y="318" font-size="14">RSS / Sitemap / Search</text>
+  </g>
+  <g stroke="#e2e8f0" stroke-width="4" fill="none" marker-end="url(#arrow)">
+    <path d="M270 145h110"/>
+    <path d="M580 145h110"/>
+    <path d="M480 200v45"/>
+    <path d="M510 200l90 45"/>
+  </g>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#e2e8f0"/>
+    </marker>
+  </defs>
+</svg>

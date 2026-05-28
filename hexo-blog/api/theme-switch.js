@@ -173,6 +173,23 @@ async function getBranchSha() {
   return branch.commit?.sha;
 }
 
+async function getCurrentTheme() {
+  const configFile = await getFile(`${HEXO_ROOT}/_config.yml`);
+  const themeMatch = configFile?.content.match(/^theme:\s*(.+)$/m);
+  const sourceFile = await getFile(`${HEXO_ROOT}/theme-source.json`);
+  let source = null;
+  try {
+    source = sourceFile ? JSON.parse(sourceFile.content) : null;
+  } catch {
+    source = null;
+  }
+  return {
+    theme: themeMatch?.[1]?.trim() || "",
+    name: source?.name || themeMatch?.[1]?.trim() || "",
+    git: source?.git || "",
+  };
+}
+
 function updateSiteConfig(source, themeValue) {
   if (/^theme:\s*.+$/m.test(source)) return source.replace(/^theme:\s*.+$/m, `theme: ${themeValue}`);
   return `${source.trimEnd()}\n\ntheme: ${themeValue}\n`;
@@ -195,9 +212,11 @@ async function triggerDeployment() {
 module.exports = async function handler(req, res) {
   if (req.method === "GET") {
     const themes = await fetchOfficialThemes();
+    const current = await getCurrentTheme();
     return json(res, 200, {
       count: themes.length,
       source: "hexojs/site",
+      current,
       themes,
     });
   }

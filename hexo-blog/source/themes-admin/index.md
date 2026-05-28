@@ -8,6 +8,8 @@ date: 2026-05-28 21:00:00
     这里会从 Hexo 官方主题市场读取模板列表。输入管理员密码后，点击“应用模板”会自动提交 GitHub，并触发 GitHub Actions 部署到 Vercel。
   </p>
 
+  <div id="theme-current" class="theme-admin__current">正在读取当前模板...</div>
+
   <div class="theme-admin__bar">
     <input id="theme-password" type="password" placeholder="管理员密码" />
     <input id="theme-search" type="search" placeholder="搜索模板名称、描述、标签" />
@@ -28,6 +30,8 @@ date: 2026-05-28 21:00:00
 .theme-card a { background: #e2e8f0; color: #0f172a; }
 .theme-card button[disabled] { opacity: .5; cursor: not-allowed; }
 .theme-admin__message { min-height: 24px; color: #0891b2; }
+.theme-admin__current { border: 1px solid #bae6fd; background: #f0f9ff; color: #075985; border-radius: 10px; padding: 14px 16px; margin: 18px 0; }
+.theme-admin__current a { color: #0369a1; font-weight: 700; }
 .theme-admin__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 20px; }
 .theme-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; background: rgba(255,255,255,.78); }
 .theme-card h3 { margin: 0 0 8px; }
@@ -45,6 +49,7 @@ date: 2026-05-28 21:00:00
 (function () {
   const grid = document.getElementById("theme-grid");
   const message = document.getElementById("theme-message");
+  const current = document.getElementById("theme-current");
   const password = document.getElementById("theme-password");
   const search = document.getElementById("theme-search");
   let themes = [];
@@ -85,6 +90,13 @@ date: 2026-05-28 21:00:00
     const response = await fetch("/api/theme-switch");
     const data = await response.json();
     themes = data.themes || [];
+    const previewUrl = `/?theme-preview=${Date.now()}`;
+    current.innerHTML = `
+      当前线上模板：<strong>${data.current && data.current.name ? data.current.name : "未知"}</strong>
+      <span>（theme: ${data.current && data.current.theme ? data.current.theme : "unknown"}）</span>
+      · <a href="${previewUrl}" target="_blank" rel="noreferrer">打开无缓存预览</a>
+      · <a href="https://github.com/xisheepsheep/my-personal-blog/actions/workflows/deploy-hexo.yml" target="_blank" rel="noreferrer">查看部署状态</a>
+    `;
     renderThemes();
   }
 
@@ -107,7 +119,7 @@ date: 2026-05-28 21:00:00
     const deployText = data.deployment && data.deployment.ok
       ? `部署已通过 GitHub Actions 触发：${data.deployment.url}`
       : "代码已切换，请查看 GitHub Actions / Vercel 部署状态。";
-    setMessage(`已切换到 ${data.theme}。${deployText}`);
+    setMessage(`已切换到 ${data.theme}。${deployText} 部署完成后点“刷新模板”查看当前模板。`);
   }
 
   document.getElementById("refresh-themes").addEventListener("click", loadThemes);

@@ -149,41 +149,13 @@ function updateSiteConfig(source, themeValue) {
   return `${source.trimEnd()}\n\ntheme: ${themeValue}\n`;
 }
 
-async function triggerVercelDeployment(sha) {
-  const token = process.env.VERCEL_TOKEN?.trim();
-  const projectId = process.env.VERCEL_PROJECT_ID?.trim();
-  const teamId = process.env.VERCEL_TEAM_ID?.trim();
-  if (!token || !projectId || !teamId) return { skipped: true, reason: "Vercel deployment env vars are not configured." };
-
-  const repoInfo = await github("");
-  const response = await fetch(`https://api.vercel.com/v13/deployments?teamId=${teamId}`, {
+async function triggerDeployment() {
+  await github("/actions/workflows/deploy-hexo.yml/dispatches", {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      name: "my-personal-blog-hexo",
-      project: projectId,
-      target: "production",
-      gitSource: {
-        type: "github",
-        repoId: String(repoInfo.id),
-        ref: BRANCH,
-        sha,
-      },
-      projectSettings: {
-        framework: "hexo",
-        rootDirectory: HEXO_ROOT,
-        installCommand: "npm install",
-        buildCommand: "npm run build",
-        outputDirectory: "public",
-      },
-    }),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ref: BRANCH }),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return { ok: false, status: response.status, message: data.error?.message || data.message || "Vercel deployment failed." };
-  return { ok: true, url: data.url, id: data.id };
+  return { ok: true, provider: "github-actions", workflow: "deploy-hexo.yml" };
 }
 
 module.exports = async function handler(req, res) {
@@ -233,7 +205,7 @@ module.exports = async function handler(req, res) {
     }
 
     const sha = configResult.sha || packageResult.sha || (await getBranchSha());
-    const deployment = await triggerVercelDeployment(sha);
+    const deployment = await triggerDeployment();
     return json(res, 200, { ok: true, theme: theme.name, commit: sha, deployment });
   } catch (error) {
     return json(res, 500, { error: error.message || "切换失败。" });

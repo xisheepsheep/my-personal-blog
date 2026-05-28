@@ -1,79 +1,39 @@
+const yaml = require("js-yaml");
+
 const REPO = process.env.GITHUB_REPO?.trim() || "xisheepsheep/my-personal-blog";
 const BRANCH = process.env.GITHUB_BRANCH?.trim() || "main";
 const HEXO_ROOT = "hexo-blog";
+const OFFICIAL_THEME_API = "https://api.github.com/repos/hexojs/site/contents/source/_data/themes";
+const OFFICIAL_RAW_BASE = "https://raw.githubusercontent.com/hexojs/site/master/source/_data/themes";
 
-const themes = [
+let themeCache = null;
+let themeCacheAt = 0;
+const CACHE_TTL = 1000 * 60 * 30;
+
+const fallbackThemes = [
   {
     id: "fluid",
     name: "Fluid",
-    packageName: "hexo-theme-fluid",
-    version: "^1.9.9",
-    themeValue: "fluid",
-    officialUrl: "https://hexo.io/themes/#Fluid",
-    previewUrl: "https://hexo.fluid-dev.com/",
     description: "现代、简洁、中文文档完整，适合技术博客和个人写作。",
-    configPath: `${HEXO_ROOT}/_config.fluid.yml`,
-    configContent: null,
-  },
-  {
-    id: "next",
-    name: "NexT",
-    packageName: "hexo-theme-next",
-    version: "^8.27.0",
-    themeValue: "next",
-    officialUrl: "https://hexo.io/themes/#NexT",
-    previewUrl: "https://theme-next.js.org/",
-    description: "经典稳定的技术博客主题，排版克制，配置项丰富。",
-    configPath: `${HEXO_ROOT}/_config.next.yml`,
-    configContent: "scheme: Muse\nmenu:\n  home: / || fa fa-home\n  archives: /archives/ || fa fa-archive\n  categories: /categories/ || fa fa-th\n  tags: /tags/ || fa fa-tags\n  about: /about/ || fa fa-user\n",
+    link: "https://github.com/fluid-dev/hexo-theme-fluid",
+    preview: "https://hexo.fluid-dev.com/",
+    tags: ["responsive", "dark"],
   },
   {
     id: "butterfly",
     name: "Butterfly",
-    packageName: "hexo-theme-butterfly",
-    version: "^5.5.4",
-    themeValue: "butterfly",
-    officialUrl: "https://hexo.io/themes/#Butterfly",
-    previewUrl: "https://butterfly.js.org/",
     description: "功能丰富、视觉更活泼，适合想要更多组件和动效的博客。",
-    configPath: `${HEXO_ROOT}/_config.butterfly.yml`,
-    configContent: "menu:\n  首页: / || fas fa-home\n  归档: /archives/ || fas fa-archive\n  分类: /categories/ || fas fa-folder-open\n  标签: /tags/ || fas fa-tags\n  关于: /about/ || fas fa-heart\nhighlight_theme: mac\n",
+    link: "https://github.com/jerryc127/hexo-theme-butterfly",
+    preview: "https://butterfly.js.org/",
+    tags: ["responsive", "dark"],
   },
   {
-    id: "icarus",
-    name: "Icarus",
-    packageName: "hexo-theme-icarus",
-    version: "^6.1.1",
-    themeValue: "icarus",
-    officialUrl: "https://hexo.io/themes/#Icarus",
-    previewUrl: "https://ppoffice.github.io/hexo-theme-icarus/",
-    description: "卡片式布局，支持侧栏与丰富小组件。",
-    configPath: `${HEXO_ROOT}/_config.icarus.yml`,
-    configContent: "navbar:\n  menu:\n    Home: /\n    Archives: /archives\n    Categories: /categories\n    Tags: /tags\n    About: /about\n",
-  },
-  {
-    id: "stellar",
-    name: "Stellar",
-    packageName: "hexo-theme-stellar",
-    version: "^1.33.1",
-    themeValue: "stellar",
-    officialUrl: "https://hexo.io/themes/#Stellar",
-    previewUrl: "https://xaoxuu.com/wiki/stellar/",
-    description: "适合知识库、项目文档和个人站点的现代主题。",
-    configPath: `${HEXO_ROOT}/_config.stellar.yml`,
-    configContent: "site_tree:\n  home:\n    leftbar: welcome, recent\n    rightbar: timeline\n",
-  },
-  {
-    id: "yun",
-    name: "Yun",
-    packageName: "hexo-theme-yun",
-    version: "^1.10.11",
-    themeValue: "yun",
-    officialUrl: "https://hexo.io/themes/#Yun",
-    previewUrl: "https://yun.yunyoujun.cn/",
-    description: "轻巧、有个性，适合偏个人化的写作站。",
-    configPath: `${HEXO_ROOT}/_config.yun.yml`,
-    configContent: "mode: light\nmenu:\n  home: /\n  archives: /archives\n  categories: /categories\n  tags: /tags\n  about: /about\n",
+    id: "next",
+    name: "NexT",
+    description: "经典稳定的技术博客主题，排版克制，配置项丰富。",
+    link: "https://github.com/next-theme/hexo-theme-next",
+    preview: "https://theme-next.js.org/",
+    tags: ["classic"],
   },
 ];
 
@@ -101,12 +61,81 @@ async function github(path, options = {}) {
   return data;
 }
 
+async function githubPublic(url, options = {}) {
+  const token = process.env.GITHUB_TOKEN?.trim();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      accept: "application/vnd.github+json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch official Hexo themes: ${response.status}`);
+  return response;
+}
+
 function decode(content) {
   return Buffer.from(content, "base64").toString("utf8");
 }
 
 function encode(content) {
   return Buffer.from(content, "utf8").toString("base64");
+}
+
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^hexo-theme-/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeGithubUrl(link) {
+  if (!link || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/.test(link)) return null;
+  return `${link.replace(/\/$/, "")}.git`;
+}
+
+function normalizeTheme(raw, fallbackName) {
+  const name = raw.name || fallbackName;
+  const link = raw.link || raw.repo || raw.repository || "";
+  const repoName = link ? link.replace(/\/$/, "").split("/").pop() : "";
+  const theme = slugify(repoName || name);
+  return {
+    id: slugify(name || repoName),
+    name,
+    description: raw.description || raw.desc || "Hexo 官方主题市场收录的主题。",
+    link,
+    preview: raw.preview || raw.demo || raw.screenshot || link,
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
+    theme,
+    git: normalizeGithubUrl(link),
+    applyable: Boolean(normalizeGithubUrl(link)),
+  };
+}
+
+async function fetchOfficialThemes() {
+  if (themeCache && Date.now() - themeCacheAt < CACHE_TTL) return themeCache;
+
+  try {
+    const listResponse = await githubPublic(OFFICIAL_THEME_API);
+    const files = (await listResponse.json()).filter((item) => item.name.endsWith(".yml") || item.name.endsWith(".yaml"));
+    const themes = await Promise.all(
+      files.map(async (file) => {
+        const rawResponse = await githubPublic(`${OFFICIAL_RAW_BASE}/${file.name}`, { headers: { accept: "text/plain" } });
+        const rawText = await rawResponse.text();
+        const parsed = yaml.load(rawText) || {};
+        return normalizeTheme(parsed, file.name.replace(/\.(ya?ml)$/i, ""));
+      }),
+    );
+    themeCache = themes.sort((a, b) => a.name.localeCompare(b.name));
+    themeCacheAt = Date.now();
+    return themeCache;
+  } catch {
+    themeCache = fallbackThemes.map((theme) => normalizeTheme(theme, theme.name));
+    themeCacheAt = Date.now();
+    return themeCache;
+  }
 }
 
 async function getFile(path) {
@@ -155,12 +184,22 @@ async function triggerDeployment() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ref: BRANCH }),
   });
-  return { ok: true, provider: "github-actions", workflow: "deploy-hexo.yml" };
+  return {
+    ok: true,
+    provider: "github-actions",
+    workflow: "deploy-hexo.yml",
+    url: `https://github.com/${REPO}/actions/workflows/deploy-hexo.yml`,
+  };
 }
 
 module.exports = async function handler(req, res) {
   if (req.method === "GET") {
-    return json(res, 200, { themes: themes.map(({ configContent, ...theme }) => theme) });
+    const themes = await fetchOfficialThemes();
+    return json(res, 200, {
+      count: themes.length,
+      source: "hexojs/site",
+      themes,
+    });
   }
 
   if (req.method !== "POST") return json(res, 405, { error: "Method not allowed." });
@@ -174,37 +213,25 @@ module.exports = async function handler(req, res) {
     return json(res, 401, { error: "管理员密码不正确。" });
   }
 
-  const theme = themes.find((item) => item.id === body.theme);
+  const themes = await fetchOfficialThemes();
+  const theme = themes.find((item) => item.id === body.theme || item.theme === body.theme);
   if (!theme) return json(res, 400, { error: "未知模板。" });
+  if (!theme.applyable) return json(res, 400, { error: "这个主题没有可自动安装的 GitHub 地址。" });
 
   try {
-    const packagePath = `${HEXO_ROOT}/package.json`;
-    const packageFile = await getFile(packagePath);
-    const packageJson = JSON.parse(packageFile.content);
-    packageJson.dependencies = packageJson.dependencies || {};
-    packageJson.dependencies[theme.packageName] = theme.version;
-    const packageResult = await putFileIfChanged(
-      packagePath,
-      `${JSON.stringify(packageJson, null, 2)}\n`,
-      `Install ${theme.name} Hexo theme`,
-    );
-
     const configPath = `${HEXO_ROOT}/_config.yml`;
     const configFile = await getFile(configPath);
     const configResult = await putFileIfChanged(
       configPath,
-      updateSiteConfig(configFile.content, theme.themeValue),
+      updateSiteConfig(configFile.content, theme.theme),
       `Switch Hexo theme to ${theme.name}`,
     );
 
-    if (theme.configContent) {
-      const themeConfig = await getFile(theme.configPath);
-      if (!themeConfig) {
-        await putFile(theme.configPath, theme.configContent, `Add ${theme.name} theme config`);
-      }
-    }
+    const sourcePath = `${HEXO_ROOT}/theme-source.json`;
+    const sourceContent = `${JSON.stringify({ theme: theme.theme, git: theme.git, name: theme.name }, null, 2)}\n`;
+    const sourceResult = await putFileIfChanged(sourcePath, sourceContent, `Use ${theme.name} Hexo theme source`);
 
-    const sha = configResult.sha || packageResult.sha || (await getBranchSha());
+    const sha = sourceResult.sha || configResult.sha || (await getBranchSha());
     const deployment = await triggerDeployment();
     return json(res, 200, { ok: true, theme: theme.name, commit: sha, deployment });
   } catch (error) {

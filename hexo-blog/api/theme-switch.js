@@ -132,6 +132,18 @@ async function putFile(path, content, message, sha) {
   });
 }
 
+async function putFileIfChanged(path, content, message) {
+  const file = await getFile(path);
+  if (file && file.content === content) return { changed: false, sha: file.sha };
+  const result = await putFile(path, content, message, file?.sha);
+  return { changed: true, sha: result.commit?.sha };
+}
+
+async function getBranchSha() {
+  const branch = await github(`/branches/${BRANCH}`);
+  return branch.commit?.sha;
+}
+
 function updateSiteConfig(source, themeValue) {
   if (/^theme:\s*.+$/m.test(source)) return source.replace(/^theme:\s*.+$/m, `theme: ${themeValue}`);
   return `${source.trimEnd()}\n\ntheme: ${themeValue}\n`;
@@ -199,20 +211,18 @@ module.exports = async function handler(req, res) {
     const packageJson = JSON.parse(packageFile.content);
     packageJson.dependencies = packageJson.dependencies || {};
     packageJson.dependencies[theme.packageName] = theme.version;
-    const packageResult = await putFile(
+    const packageResult = await putFileIfChanged(
       packagePath,
       `${JSON.stringify(packageJson, null, 2)}\n`,
       `Install ${theme.name} Hexo theme`,
-      packageFile.sha,
     );
 
     const configPath = `${HEXO_ROOT}/_config.yml`;
     const configFile = await getFile(configPath);
-    const configResult = await putFile(
+    const configResult = await putFileIfChanged(
       configPath,
       updateSiteConfig(configFile.content, theme.themeValue),
       `Switch Hexo theme to ${theme.name}`,
-      configFile.sha,
     );
 
     if (theme.configContent) {
@@ -222,7 +232,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const sha = configResult.commit?.sha || packageResult.commit?.sha;
+    const sha = configResult.sha || packageResult.sha || (await getBranchSha());
     const deployment = await triggerVercelDeployment(sha);
     return json(res, 200, { ok: true, theme: theme.name, commit: sha, deployment });
   } catch (error) {

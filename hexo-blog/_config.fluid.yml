@@ -18,6 +18,7 @@ navbar:
     - { key: "分类", link: "/categories/", icon: "iconfont icon-category-fill" }
     - { key: "标签", link: "/tags/", icon: "iconfont icon-tags-fill" }
     - { key: "模板", link: "/themes/", icon: "iconfont icon-brush" }
+    - { key: "模板后台", link: "/themes-admin/", icon: "iconfont icon-setting-fill" }
     - { key: "项目", link: "/projects/", icon: "iconfont icon-code" }
     - { key: "关于", link: "/about/", icon: "iconfont icon-user-fill" }
 

@@ -63,7 +63,7 @@ updated_option: mtime
 per_page: 8
 pagination_dir: page
 
-theme: butterfly
+theme: matery
 
 feed:
   type: atom

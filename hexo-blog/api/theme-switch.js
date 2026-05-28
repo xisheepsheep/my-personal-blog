@@ -173,6 +173,41 @@ async function getBranchSha() {
   return branch.commit?.sha;
 }
 
+async function commitFiles(files, message) {
+  const parentSha = await getBranchSha();
+  const tree = await github("/git/trees", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      base_tree: parentSha,
+      tree: files.map((file) => ({
+        path: file.path,
+        mode: "100644",
+        type: "blob",
+        content: file.content,
+      })),
+    }),
+  });
+  const commit = await github("/git/commits", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      message,
+      tree: tree.sha,
+      parents: [parentSha],
+    }),
+  });
+  await github(`/git/refs/heads/${BRANCH}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sha: commit.sha,
+      force: false,
+    }),
+  });
+  return commit.sha;
+}
+
 async function getCurrentTheme() {
   const configFile = await getFile(`${HEXO_ROOT}/_config.yml`);
   const themeMatch = configFile?.content.match(/^theme:\s*(.+)$/m);
@@ -240,17 +275,20 @@ module.exports = async function handler(req, res) {
   try {
     const configPath = `${HEXO_ROOT}/_config.yml`;
     const configFile = await getFile(configPath);
-    const configResult = await putFileIfChanged(
-      configPath,
-      updateSiteConfig(configFile.content, theme.theme),
-      `Switch Hexo theme to ${theme.name}`,
-    );
-
     const sourcePath = `${HEXO_ROOT}/theme-source.json`;
+    const configContent = updateSiteConfig(configFile.content, theme.theme);
     const sourceContent = `${JSON.stringify({ theme: theme.theme, git: theme.git, name: theme.name }, null, 2)}\n`;
-    const sourceResult = await putFileIfChanged(sourcePath, sourceContent, `Use ${theme.name} Hexo theme source`);
-
-    const sha = sourceResult.sha || configResult.sha || (await getBranchSha());
+    const sourceFile = await getFile(sourcePath);
+    const changed = configFile.content !== configContent || sourceFile?.content !== sourceContent;
+    const sha = changed
+      ? await commitFiles(
+          [
+            { path: configPath, content: configContent },
+            { path: sourcePath, content: sourceContent },
+          ],
+          `Switch Hexo theme to ${theme.name}`,
+        )
+      : await getBranchSha();
     const deployment = await triggerDeployment();
     return json(res, 200, { ok: true, theme: theme.name, commit: sha, deployment });
   } catch (error) {

@@ -1,0 +1,37 @@
+name: Deploy Hexo Blog to Tencent COS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hexo-blog
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: hexo-blog/package-lock.json
+
+      - run: npm install
+
+      - run: npm run build
+
+      - name: Install COSCMD
+        run: pip install coscmd
+
+      - name: Configure COSCMD
+        run: |
+          coscmd config \
+            -a "${{ secrets.TENCENT_SECRET_ID }}" \
+            -s "${{ secrets.TENCENT_SECRET_KEY }}" \
+            -b "${{ secrets.TENCENT_COS_BUCKET }}" \
+            -r "${{ secrets.TENCENT_COS_REGION }}"
+
+      - name: Upload static files to COS
+        run: coscmd upload -rs --delete public/ /
